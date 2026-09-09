@@ -1,4 +1,4 @@
-name: Build and Promote Integration to Master
+name: Build and Promote Integration to main
 
 on:
   # Automatically run whenever code is pushed/merged to integration
@@ -9,8 +9,8 @@ on:
   # Allow manual execution
   workflow_dispatch:
     inputs:
-      merge_to_master:
-        description: "Merge integration to master after successful build?"
+      merge_to_main:
+        description: "Merge integration to main after successful build?"
         required: true
         default: true
         type: boolean
@@ -120,18 +120,18 @@ jobs:
 
 
   # ============================================================
-  # MERGE INTEGRATION → MASTER
+  # MERGE INTEGRATION → main
   # ============================================================
 
   promote:
-    name: Promote Integration to Master
+    name: Promote Integration to main
     needs: build
 
     # For push events automatically merge.
     # For manual runs merge only when user selects true.
     if: >
       github.event_name == 'push' ||
-      inputs.merge_to_master == true
+      inputs.merge_to_main == true
 
     runs-on: ubuntu-latest
 
@@ -160,20 +160,20 @@ jobs:
           git rev-parse HEAD
 
       # --------------------------------------------------------
-      # Check whether integration is ahead of master
+      # Check whether integration is ahead of main
       # --------------------------------------------------------
 
       - name: Check changes
         run: |
 
-          git fetch origin master integration
+          git fetch origin main integration
 
           BEHIND_AHEAD=$(git rev-list \
             --left-right \
             --count \
-            origin/master...origin/integration)
+            origin/main...origin/integration)
 
-          echo "Master...Integration:"
+          echo "main...Integration:"
           echo "$BEHIND_AHEAD"
 
           AHEAD=$(echo "$BEHIND_AHEAD" | awk '{print $2}')
@@ -186,24 +186,24 @@ jobs:
           echo "Integration contains $AHEAD new commit(s)."
 
       # --------------------------------------------------------
-      # Merge integration → master
+      # Merge integration → main
       # --------------------------------------------------------
 
-      - name: Merge integration into master
+      - name: Merge integration into main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
           echo "======================================"
-          echo "Promoting integration → master"
+          echo "Promoting integration → main"
           echo "======================================"
 
           gh pr create \
             --repo "${{ github.repository }}" \
-            --base master \
+            --base main \
             --head integration \
-            --title "Promote integration to master" \
-            --body "Automated promotion from integration to master."
+            --title "Promote integration to main" \
+            --body "Automated promotion from integration to main."
 
       # --------------------------------------------------------
       # Merge promotion PR
@@ -216,7 +216,7 @@ jobs:
 
           PR_NUMBER=$(gh pr list \
             --repo "${{ github.repository }}" \
-            --base master \
+            --base main \
             --head integration \
             --state open \
             --json number \
@@ -235,5 +235,5 @@ jobs:
             --delete-branch=false
 
           echo "======================================"
-          echo "Integration successfully promoted to master"
+          echo "Integration successfully promoted to main"
           echo "======================================"
