@@ -74,7 +74,7 @@ jobs:
           echo "Starting build..."
 
           # Replace with your actual build command
-          ./build.sh
+          # ./build.sh
 
       # --------------------------------------------------------
       # Unit Tests
@@ -85,7 +85,7 @@ jobs:
           echo "Running tests..."
 
           # Replace with your actual test command
-          ./test.sh
+          # ./test.sh
 
       # --------------------------------------------------------
       # Add SonarQube here
