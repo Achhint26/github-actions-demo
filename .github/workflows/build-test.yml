@@ -1,0 +1,43 @@
+name: Build & Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_branch:
+        description: 'Branch containing build/test configuration'
+        required: true
+        default: 'Integration'
+        type: string
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Checkout configuration branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.config_branch }}
+          path: config
+
+      - name: Show branches
+        run: |
+          echo "Code branch: ${{ github.ref_name }}"
+          echo "Config branch: ${{ inputs.config_branch }}"
+
+      - name: Load configuration
+        run: |
+          cp config/config/application.properties ./application.properties
+
+      - name: Build
+        run: |
+          ./build.sh
+
+      - name: Test
+        run: |
+          ./test.sh

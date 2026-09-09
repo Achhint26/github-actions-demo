@@ -1,0 +1,184 @@
+name: Merge Feature PR to Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number"
+        required: true
+        type: string
+
+      pr_label:
+        description: "Required PR label"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+
+  validate-and-merge:
+    name: Validate and Merge PR
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ---------------------------------------------------------
+      # 1. Display input
+      # ---------------------------------------------------------
+      - name: Display inputs
+        run: |
+          echo "PR Number : ${{ inputs.pr_number }}"
+          echo "PR Label  : ${{ inputs.pr_label }}"
+
+      # ---------------------------------------------------------
+      # 2. Get PR information
+      # ---------------------------------------------------------
+      - name: Get PR details
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          gh pr view "${{ inputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --json number,title,state,baseRefName,headRefName,mergeable,mergeStateStatus,isDraft,labels
+
+      # ---------------------------------------------------------
+      # 3. Validate PR
+      # ---------------------------------------------------------
+      - name: Validate PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          PR_NUMBER="${{ inputs.pr_number }}"
+          REQUIRED_LABEL="${{ inputs.pr_label }}"
+
+          echo "Validating PR #${PR_NUMBER}"
+
+          # Get PR data
+          PR_DATA=$(gh pr view "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --json state,baseRefName,mergeable,mergeStateStatus,isDraft,labels)
+
+          echo "$PR_DATA"
+
+          # -----------------------------------------------------
+          # Check PR state
+          # -----------------------------------------------------
+
+          STATE=$(echo "$PR_DATA" | jq -r '.state')
+
+          if [ "$STATE" != "OPEN" ]; then
+            echo "ERROR: PR is not open."
+            exit 1
+          fi
+
+          # -----------------------------------------------------
+          # Check target branch
+          # -----------------------------------------------------
+
+          BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.baseRefName')
+
+          if [ "$BASE_BRANCH" != "integration" ]; then
+            echo "ERROR: PR #${PR_NUMBER} is targeting '${BASE_BRANCH}'."
+            echo "Only PRs targeting integration can be merged."
+            exit 1
+          fi
+
+          # -----------------------------------------------------
+          # Check draft status
+          # -----------------------------------------------------
+
+          IS_DRAFT=$(echo "$PR_DATA" | jq -r '.isDraft')
+
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "ERROR: PR is still a draft."
+            exit 1
+          fi
+
+          # -----------------------------------------------------
+          # Check required label
+          # -----------------------------------------------------
+
+          LABEL_EXISTS=$(echo "$PR_DATA" | jq -r \
+            --arg LABEL "$REQUIRED_LABEL" \
+            '[.labels[].name] | any(. == $LABEL)')
+
+          if [ "$LABEL_EXISTS" != "true" ]; then
+            echo "ERROR: Required label '$REQUIRED_LABEL' is not present."
+            echo "Available labels:"
+
+            echo "$PR_DATA" | jq -r \
+              '.labels[].name'
+
+            exit 1
+          fi
+
+          echo "Required label '$REQUIRED_LABEL' found."
+
+          # -----------------------------------------------------
+          # Check mergeability
+          # -----------------------------------------------------
+
+          MERGEABLE=$(echo "$PR_DATA" | jq -r '.mergeable')
+
+          if [ "$MERGEABLE" != "MERGEABLE" ]; then
+            echo "ERROR: PR is not mergeable."
+            echo "Mergeable status: $MERGEABLE"
+            exit 1
+          fi
+
+          echo "PR is mergeable."
+
+          # -----------------------------------------------------
+          # Check merge state
+          # -----------------------------------------------------
+
+          MERGE_STATE=$(echo "$PR_DATA" | jq -r '.mergeStateStatus')
+
+          echo "Merge state: $MERGE_STATE"
+
+          if [[ "$MERGE_STATE" == "BLOCKED" ||
+                "$MERGE_STATE" == "DIRTY" ||
+                "$MERGE_STATE" == "BEHIND" ]]; then
+
+            echo "ERROR: PR cannot currently be merged."
+            exit 1
+          fi
+
+          echo "All PR validations passed."
+
+      # ---------------------------------------------------------
+      # 4. Verify GitHub checks
+      # ---------------------------------------------------------
+      - name: Verify PR checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          echo "Checking required CI checks..."
+
+          gh pr checks "${{ inputs.pr_number }}" \
+            --repo "${{ github.repository }}"
+
+      # ---------------------------------------------------------
+      # 5. Merge PR
+      # ---------------------------------------------------------
+      - name: Merge PR into integration
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          echo "Merging PR #${{ inputs.pr_number }} into integration..."
+
+          gh pr merge "${{ inputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --merge \
+            --delete-branch=false
+
+          echo "PR #${{ inputs.pr_number }} successfully merged."
