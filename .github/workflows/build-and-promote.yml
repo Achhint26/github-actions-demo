@@ -17,8 +17,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
-  checks: read
 
 jobs:
 
@@ -49,8 +47,8 @@ jobs:
       - name: Display build information
         run: |
           echo "======================================"
-          echo "Branch       : integration"
-          echo "Commit       : $(git rev-parse HEAD)"
+          echo "Branch        : integration"
+          echo "Commit        : $(git rev-parse HEAD)"
           echo "Commit Message:"
           git log -1 --pretty=%B
           echo "======================================"
@@ -88,16 +86,20 @@ jobs:
           # ./test.sh
 
       # --------------------------------------------------------
-      # Add SonarQube here
+      # SonarQube
       # --------------------------------------------------------
 
+      # Add SonarQube scan here
+      #
       # - name: SonarQube Scan
       #   ...
 
       # --------------------------------------------------------
-      # Add Veracode here
+      # Veracode
       # --------------------------------------------------------
 
+      # Add Veracode scan here
+      #
       # - name: Veracode Scan
       #   ...
 
@@ -105,7 +107,9 @@ jobs:
       # Liquibase validation
       # --------------------------------------------------------
 
-      # - name: Liquibase validation
+      # Add Liquibase validation here
+      #
+      # - name: Liquibase Validate
       #   ...
 
       # --------------------------------------------------------
@@ -120,7 +124,7 @@ jobs:
 
 
   # ============================================================
-  # MERGE INTEGRATION → main
+  # MERGE integration → main
   # ============================================================
 
   promote:
@@ -138,33 +142,44 @@ jobs:
     steps:
 
       # --------------------------------------------------------
-      # Get integration branch information
+      # Checkout repository
       # --------------------------------------------------------
 
-      - name: Checkout repository
+      - name: Checkout integration
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: integration
+          fetch-depth: 0
 
       # --------------------------------------------------------
-      # Check integration branch
+      # Verify branches
       # --------------------------------------------------------
 
-      - name: Verify integration branch
+      - name: Verify branches
         run: |
-          echo "Current branch:"
-          git branch --show-current
+          echo "======================================"
+          echo "Verifying branches"
+          echo "======================================"
 
-          echo "Current commit:"
-          git rev-parse HEAD
+          git fetch origin main integration
+
+          echo "Integration commit:"
+          git rev-parse origin/integration
+
+          echo "Main commit:"
+          git rev-parse origin/main
 
       # --------------------------------------------------------
       # Check whether integration is ahead of main
       # --------------------------------------------------------
 
-      - name: Check changes
+      - name: Check integration changes
+        id: changes
         run: |
+
+          echo "======================================"
+          echo "Checking integration vs main"
+          echo "======================================"
 
           git fetch origin main integration
 
@@ -173,23 +188,29 @@ jobs:
             --count \
             origin/main...origin/integration)
 
-          echo "main...Integration:"
-          echo "$BEHIND_AHEAD"
-
+          BEHIND=$(echo "$BEHIND_AHEAD" | awk '{print $1}')
           AHEAD=$(echo "$BEHIND_AHEAD" | awk '{print $2}')
+
+          echo "Main behind integration : $AHEAD commit(s)"
+          echo "Integration behind main : $BEHIND commit(s)"
+
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
 
           if [ "$AHEAD" -eq 0 ]; then
             echo "No new commits to promote."
-            exit 1
+            exit 0
           fi
 
           echo "Integration contains $AHEAD new commit(s)."
+          echo "Changes are available for promotion."
 
       # --------------------------------------------------------
-      # Merge integration → main
+      # Direct merge integration → main
       # --------------------------------------------------------
 
       - name: Merge integration into main
+        if: steps.changes.outputs.ahead != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -198,42 +219,42 @@ jobs:
           echo "Promoting integration → main"
           echo "======================================"
 
-          gh pr create \
-            --repo "${{ github.repository }}" \
-            --base main \
-            --head integration \
-            --title "Promote integration to main" \
-            --body "Automated promotion from integration to main."
+          echo "Source branch : integration"
+          echo "Target branch : main"
 
-      # --------------------------------------------------------
-      # Merge promotion PR
-      # --------------------------------------------------------
+          echo "Starting GitHub API merge..."
 
-      - name: Merge promotion PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
+          RESPONSE=$(gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/merges" \
+            -f base='main' \
+            -f head='integration' \
+            -f commit_message='Automated promotion: integration → main')
 
-          PR_NUMBER=$(gh pr list \
-            --repo "${{ github.repository }}" \
-            --base main \
-            --head integration \
-            --state open \
-            --json number \
-            --jq '.[0].number')
+          echo "Merge API response:"
+          echo "$RESPONSE"
 
-          if [ -z "$PR_NUMBER" ]; then
-            echo "ERROR: Promotion PR was not found."
+          # ----------------------------------------------------
+          # Check whether GitHub actually created a merge commit
+          # ----------------------------------------------------
+
+          if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
+            echo "ERROR: GitHub did not create a merge."
             exit 1
           fi
-
-          echo "Promotion PR: #${PR_NUMBER}"
-
-          gh pr merge "$PR_NUMBER" \
-            --repo "${{ github.repository }}" \
-            --merge \
-            --delete-branch=false
 
           echo "======================================"
           echo "Integration successfully promoted to main"
           echo "======================================"
+
+      # --------------------------------------------------------
+      # Nothing to promote
+      # --------------------------------------------------------
+
+      - name: No changes to promote
+        if: steps.changes.outputs.ahead == '0'
+        run: |
+          echo "======================================"
+          echo "No changes to promote"
+          echo "======================================"
+          echo "integration and main are already aligned."
