@@ -6,7 +6,7 @@ on:
       config_branch:
         description: 'Branch containing build/test configuration'
         required: true
-        default: 'develop'
+        default: 'Integration'
         type: string
 
 jobs:
