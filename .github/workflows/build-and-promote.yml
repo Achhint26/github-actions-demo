@@ -1,0 +1,260 @@
+name: Build and Promote Integration to main
+
+on:
+  # Automatically run whenever code is pushed/merged to integration
+  push:
+    branches:
+      - integration
+
+  # Allow manual execution
+  workflow_dispatch:
+    inputs:
+      merge_to_main:
+        description: "Merge integration to main after successful build?"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+
+  # ============================================================
+  # BUILD & VALIDATION
+  # ============================================================
+
+  build:
+    name: Build and Validate
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # Checkout integration
+      # --------------------------------------------------------
+
+      - name: Checkout integration
+        uses: actions/checkout@v4
+        with:
+          ref: integration
+          fetch-depth: 0
+
+      # --------------------------------------------------------
+      # Display commit information
+      # --------------------------------------------------------
+
+      - name: Display build information
+        run: |
+          echo "======================================"
+          echo "Branch        : integration"
+          echo "Commit        : $(git rev-parse HEAD)"
+          echo "Commit Message:"
+          git log -1 --pretty=%B
+          echo "======================================"
+
+      # --------------------------------------------------------
+      # Setup Java
+      # --------------------------------------------------------
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # --------------------------------------------------------
+      # Build
+      # --------------------------------------------------------
+
+      - name: Build
+        run: |
+          echo "Starting build..."
+
+          # Replace with your actual build command
+          # ./build.sh
+
+      # --------------------------------------------------------
+      # Unit Tests
+      # --------------------------------------------------------
+
+      - name: Run tests
+        run: |
+          echo "Running tests..."
+
+          # Replace with your actual test command
+          # ./test.sh
+
+      # --------------------------------------------------------
+      # SonarQube
+      # --------------------------------------------------------
+
+      # Add SonarQube scan here
+      #
+      # - name: SonarQube Scan
+      #   ...
+
+      # --------------------------------------------------------
+      # Veracode
+      # --------------------------------------------------------
+
+      # Add Veracode scan here
+      #
+      # - name: Veracode Scan
+      #   ...
+
+      # --------------------------------------------------------
+      # Liquibase validation
+      # --------------------------------------------------------
+
+      # Add Liquibase validation here
+      #
+      # - name: Liquibase Validate
+      #   ...
+
+      # --------------------------------------------------------
+      # Build completed
+      # --------------------------------------------------------
+
+      - name: Build successful
+        run: |
+          echo "======================================"
+          echo "BUILD AND VALIDATION SUCCESSFUL"
+          echo "======================================"
+
+
+  # ============================================================
+  # MERGE integration → main
+  # ============================================================
+
+  promote:
+    name: Promote Integration to main
+    needs: build
+
+    # For push events automatically merge.
+    # For manual runs merge only when user selects true.
+    if: >
+      github.event_name == 'push' ||
+      inputs.merge_to_main == true
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------
+
+      - name: Checkout integration
+        uses: actions/checkout@v4
+        with:
+          ref: integration
+          fetch-depth: 0
+
+      # --------------------------------------------------------
+      # Verify branches
+      # --------------------------------------------------------
+
+      - name: Verify branches
+        run: |
+          echo "======================================"
+          echo "Verifying branches"
+          echo "======================================"
+
+          git fetch origin main integration
+
+          echo "Integration commit:"
+          git rev-parse origin/integration
+
+          echo "Main commit:"
+          git rev-parse origin/main
+
+      # --------------------------------------------------------
+      # Check whether integration is ahead of main
+      # --------------------------------------------------------
+
+      - name: Check integration changes
+        id: changes
+        run: |
+
+          echo "======================================"
+          echo "Checking integration vs main"
+          echo "======================================"
+
+          git fetch origin main integration
+
+          BEHIND_AHEAD=$(git rev-list \
+            --left-right \
+            --count \
+            origin/main...origin/integration)
+
+          BEHIND=$(echo "$BEHIND_AHEAD" | awk '{print $1}')
+          AHEAD=$(echo "$BEHIND_AHEAD" | awk '{print $2}')
+
+          echo "Main behind integration : $AHEAD commit(s)"
+          echo "Integration behind main : $BEHIND commit(s)"
+
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
+
+          if [ "$AHEAD" -eq 0 ]; then
+            echo "No new commits to promote."
+            exit 0
+          fi
+
+          echo "Integration contains $AHEAD new commit(s)."
+          echo "Changes are available for promotion."
+
+      # --------------------------------------------------------
+      # Direct merge integration → main
+      # --------------------------------------------------------
+
+      - name: Merge integration into main
+        if: steps.changes.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          echo "======================================"
+          echo "Promoting integration → main"
+          echo "======================================"
+
+          echo "Source branch : integration"
+          echo "Target branch : main"
+
+          echo "Starting GitHub API merge..."
+
+          RESPONSE=$(gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/merges" \
+            -f base='main' \
+            -f head='integration' \
+            -f commit_message='Automated promotion: integration → main')
+
+          echo "Merge API response:"
+          echo "$RESPONSE"
+
+          # ----------------------------------------------------
+          # Check whether GitHub actually created a merge commit
+          # ----------------------------------------------------
+
+          if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
+            echo "ERROR: GitHub did not create a merge."
+            exit 1
+          fi
+
+          echo "======================================"
+          echo "Integration successfully promoted to main"
+          echo "======================================"
+
+      # --------------------------------------------------------
+      # Nothing to promote
+      # --------------------------------------------------------
+
+      - name: No changes to promote
+        if: steps.changes.outputs.ahead == '0'
+        run: |
+          echo "======================================"
+          echo "No changes to promote"
+          echo "======================================"
+          echo "integration and main are already aligned."

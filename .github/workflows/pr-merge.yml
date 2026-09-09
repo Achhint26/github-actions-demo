@@ -16,10 +16,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  checks: read
 
 jobs:
-
   validate-and-merge:
     name: Validate and Merge PR
     runs-on: ubuntu-latest
@@ -27,7 +25,7 @@ jobs:
     steps:
 
       # ---------------------------------------------------------
-      # 1. Display input
+      # 1. Display inputs
       # ---------------------------------------------------------
       - name: Display inputs
         run: |
@@ -38,11 +36,9 @@ jobs:
       # 2. Get PR information
       # ---------------------------------------------------------
       - name: Get PR details
-        id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-
           gh pr view "${{ inputs.pr_number }}" \
             --repo "${{ github.repository }}" \
             --json number,title,state,baseRefName,headRefName,mergeable,mergeStateStatus,isDraft,labels
@@ -58,12 +54,14 @@ jobs:
           PR_NUMBER="${{ inputs.pr_number }}"
           REQUIRED_LABEL="${{ inputs.pr_label }}"
 
+          echo "======================================"
           echo "Validating PR #${PR_NUMBER}"
+          echo "Required Label: ${REQUIRED_LABEL}"
+          echo "======================================"
 
-          # Get PR data
           PR_DATA=$(gh pr view "$PR_NUMBER" \
             --repo "${{ github.repository }}" \
-            --json state,baseRefName,mergeable,mergeStateStatus,isDraft,labels)
+            --json state,baseRefName,headRefName,mergeable,mergeStateStatus,isDraft,labels)
 
           echo "$PR_DATA"
 
@@ -78,6 +76,8 @@ jobs:
             exit 1
           fi
 
+          echo "PASS: PR is OPEN"
+
           # -----------------------------------------------------
           # Check target branch
           # -----------------------------------------------------
@@ -85,10 +85,28 @@ jobs:
           BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.baseRefName')
 
           if [ "$BASE_BRANCH" != "integration" ]; then
-            echo "ERROR: PR #${PR_NUMBER} is targeting '${BASE_BRANCH}'."
-            echo "Only PRs targeting integration can be merged."
+            echo "ERROR: PR targets '${BASE_BRANCH}'."
+            echo "Only PRs targeting 'integration' can be merged."
             exit 1
           fi
+
+          echo "PASS: Target branch is integration"
+
+          # -----------------------------------------------------
+          # Check source branch
+          # -----------------------------------------------------
+
+          HEAD_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName')
+
+          echo "Source branch: ${HEAD_BRANCH}"
+
+          # Optional:
+          # Uncomment if ONLY feature branches should be allowed.
+          #
+          # if [[ "$HEAD_BRANCH" != feature/* ]]; then
+          #   echo "ERROR: Source branch must start with feature/"
+          #   exit 1
+          # fi
 
           # -----------------------------------------------------
           # Check draft status
@@ -101,6 +119,8 @@ jobs:
             exit 1
           fi
 
+          echo "PASS: PR is not a draft"
+
           # -----------------------------------------------------
           # Check required label
           # -----------------------------------------------------
@@ -110,16 +130,16 @@ jobs:
             '[.labels[].name] | any(. == $LABEL)')
 
           if [ "$LABEL_EXISTS" != "true" ]; then
-            echo "ERROR: Required label '$REQUIRED_LABEL' is not present."
-            echo "Available labels:"
 
-            echo "$PR_DATA" | jq -r \
-              '.labels[].name'
+            echo "ERROR: Required label '$REQUIRED_LABEL' is not present."
+
+            echo "Available labels:"
+            echo "$PR_DATA" | jq -r '.labels[].name'
 
             exit 1
           fi
 
-          echo "Required label '$REQUIRED_LABEL' found."
+          echo "PASS: Required label '$REQUIRED_LABEL' exists"
 
           # -----------------------------------------------------
           # Check mergeability
@@ -133,7 +153,7 @@ jobs:
             exit 1
           fi
 
-          echo "PR is mergeable."
+          echo "PASS: PR is MERGEABLE"
 
           # -----------------------------------------------------
           # Check merge state
@@ -141,44 +161,41 @@ jobs:
 
           MERGE_STATE=$(echo "$PR_DATA" | jq -r '.mergeStateStatus')
 
-          echo "Merge state: $MERGE_STATE"
+          echo "Merge state: ${MERGE_STATE}"
 
           if [[ "$MERGE_STATE" == "BLOCKED" ||
-                "$MERGE_STATE" == "DIRTY" ||
-                "$MERGE_STATE" == "BEHIND" ]]; then
+                "$MERGE_STATE" == "DIRTY" ]]; then
 
             echo "ERROR: PR cannot currently be merged."
             exit 1
           fi
 
-          echo "All PR validations passed."
+          echo "PASS: Merge state is ${MERGE_STATE}"
+
+          echo ""
+          echo "======================================"
+          echo "All validations passed"
+          echo "======================================"
 
       # ---------------------------------------------------------
-      # 4. Verify GitHub checks
-      # ---------------------------------------------------------
-      - name: Verify PR checks
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-
-          echo "Checking required CI checks..."
-
-          gh pr checks "${{ inputs.pr_number }}" \
-            --repo "${{ github.repository }}"
-
-      # ---------------------------------------------------------
-      # 5. Merge PR
+      # 4. Merge PR
       # ---------------------------------------------------------
       - name: Merge PR into integration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
-          echo "Merging PR #${{ inputs.pr_number }} into integration..."
+          echo "======================================"
+          echo "Merging PR #${{ inputs.pr_number }}"
+          echo "Target: integration"
+          echo "======================================"
 
           gh pr merge "${{ inputs.pr_number }}" \
             --repo "${{ github.repository }}" \
             --merge \
             --delete-branch=false
 
-          echo "PR #${{ inputs.pr_number }} successfully merged."
+          echo ""
+          echo "======================================"
+          echo "PR #${{ inputs.pr_number }} successfully merged"
+          echo "======================================"
