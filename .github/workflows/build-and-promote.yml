@@ -1,0 +1,239 @@
+name: Build and Promote Integration to Master
+
+on:
+  # Automatically run whenever code is pushed/merged to integration
+  push:
+    branches:
+      - integration
+
+  # Allow manual execution
+  workflow_dispatch:
+    inputs:
+      merge_to_master:
+        description: "Merge integration to master after successful build?"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+
+  # ============================================================
+  # BUILD & VALIDATION
+  # ============================================================
+
+  build:
+    name: Build and Validate
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # Checkout integration
+      # --------------------------------------------------------
+
+      - name: Checkout integration
+        uses: actions/checkout@v4
+        with:
+          ref: integration
+          fetch-depth: 0
+
+      # --------------------------------------------------------
+      # Display commit information
+      # --------------------------------------------------------
+
+      - name: Display build information
+        run: |
+          echo "======================================"
+          echo "Branch       : integration"
+          echo "Commit       : $(git rev-parse HEAD)"
+          echo "Commit Message:"
+          git log -1 --pretty=%B
+          echo "======================================"
+
+      # --------------------------------------------------------
+      # Setup Java
+      # --------------------------------------------------------
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # --------------------------------------------------------
+      # Build
+      # --------------------------------------------------------
+
+      - name: Build
+        run: |
+          echo "Starting build..."
+
+          # Replace with your actual build command
+          ./build.sh
+
+      # --------------------------------------------------------
+      # Unit Tests
+      # --------------------------------------------------------
+
+      - name: Run tests
+        run: |
+          echo "Running tests..."
+
+          # Replace with your actual test command
+          ./test.sh
+
+      # --------------------------------------------------------
+      # Add SonarQube here
+      # --------------------------------------------------------
+
+      # - name: SonarQube Scan
+      #   ...
+
+      # --------------------------------------------------------
+      # Add Veracode here
+      # --------------------------------------------------------
+
+      # - name: Veracode Scan
+      #   ...
+
+      # --------------------------------------------------------
+      # Liquibase validation
+      # --------------------------------------------------------
+
+      # - name: Liquibase validation
+      #   ...
+
+      # --------------------------------------------------------
+      # Build completed
+      # --------------------------------------------------------
+
+      - name: Build successful
+        run: |
+          echo "======================================"
+          echo "BUILD AND VALIDATION SUCCESSFUL"
+          echo "======================================"
+
+
+  # ============================================================
+  # MERGE INTEGRATION → MASTER
+  # ============================================================
+
+  promote:
+    name: Promote Integration to Master
+    needs: build
+
+    # For push events automatically merge.
+    # For manual runs merge only when user selects true.
+    if: >
+      github.event_name == 'push' ||
+      inputs.merge_to_master == true
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # Get integration branch information
+      # --------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: integration
+
+      # --------------------------------------------------------
+      # Check integration branch
+      # --------------------------------------------------------
+
+      - name: Verify integration branch
+        run: |
+          echo "Current branch:"
+          git branch --show-current
+
+          echo "Current commit:"
+          git rev-parse HEAD
+
+      # --------------------------------------------------------
+      # Check whether integration is ahead of master
+      # --------------------------------------------------------
+
+      - name: Check changes
+        run: |
+
+          git fetch origin master integration
+
+          BEHIND_AHEAD=$(git rev-list \
+            --left-right \
+            --count \
+            origin/master...origin/integration)
+
+          echo "Master...Integration:"
+          echo "$BEHIND_AHEAD"
+
+          AHEAD=$(echo "$BEHIND_AHEAD" | awk '{print $2}')
+
+          if [ "$AHEAD" -eq 0 ]; then
+            echo "No new commits to promote."
+            exit 1
+          fi
+
+          echo "Integration contains $AHEAD new commit(s)."
+
+      # --------------------------------------------------------
+      # Merge integration → master
+      # --------------------------------------------------------
+
+      - name: Merge integration into master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          echo "======================================"
+          echo "Promoting integration → master"
+          echo "======================================"
+
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --base master \
+            --head integration \
+            --title "Promote integration to master" \
+            --body "Automated promotion from integration to master."
+
+      # --------------------------------------------------------
+      # Merge promotion PR
+      # --------------------------------------------------------
+
+      - name: Merge promotion PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --base master \
+            --head integration \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "ERROR: Promotion PR was not found."
+            exit 1
+          fi
+
+          echo "Promotion PR: #${PR_NUMBER}"
+
+          gh pr merge "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --merge \
+            --delete-branch=false
+
+          echo "======================================"
+          echo "Integration successfully promoted to master"
+          echo "======================================"
