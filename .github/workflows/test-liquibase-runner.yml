@@ -8,40 +8,39 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Check runner identity
-        shell: powershell
+      - name: Runner identity
+        shell: cmd
         run: |
-          Write-Host "===== RUNNER IDENTITY ====="
+          echo ===== RUNNER IDENTITY =====
           whoami
-          $env:USERNAME
-          $env:USERDOMAIN
+          echo USERNAME=%USERNAME%
+          echo USERDOMAIN=%USERDOMAIN%
+          echo USERPROFILE=%USERPROFILE%
 
-      - name: Check runner environment
-        shell: powershell
+      - name: Java
+        shell: cmd
         run: |
-          Write-Host "===== ENVIRONMENT ====="
-          Write-Host "USERPROFILE = $env:USERPROFILE"
-          Write-Host "JAVA_HOME = $env:JAVA_HOME"
-          Write-Host "LIQUIBASE_HOME = $env:LIQUIBASE_HOME"
-          Write-Host "PATH = $env:PATH"
-
-      - name: Check Java
-        shell: powershell
-        run: |
-          Write-Host "===== JAVA ====="
+          echo ===== JAVA =====
+          where java
           java -version
-          where.exe java
 
-      - name: Check Liquibase
-        shell: powershell
+      - name: Liquibase
+        shell: cmd
         run: |
-          Write-Host "===== LIQUIBASE ====="
-          where.exe liquibase
+          echo ===== LIQUIBASE =====
+          where liquibase
           liquibase --version
 
-      - name: Check Snowflake JDBC
-        shell: powershell
+      - name: Snowflake JDBC
+        shell: cmd
         run: |
-          Write-Host "===== SNOWFLAKE JDBC ====="
-          Get-ChildItem "C:\Users\AKSHATA RANI\actions-runner\liquibase_libs" |
-          Where-Object { $_.Name -match "snowflake" }
+          echo ===== SNOWFLAKE JDBC =====
+          dir "C:\Users\AKSHATA RANI\actions-runner\liquibase_libs"
+
+      - name: Runner environment
+        shell: cmd
+        run: |
+          echo ===== ENVIRONMENT =====
+          echo JAVA_HOME=%JAVA_HOME%
+          echo LIQUIBASE_HOME=%LIQUIBASE_HOME%
+          echo PATH=%PATH%
