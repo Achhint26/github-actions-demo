@@ -8,9 +8,8 @@ jobs:
     runs-on: [self-hosted, Windows, X64]
 
     steps:
-
       - name: Check Runner
-        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        shell: bash
         run: |
           echo "======================================"
           echo "Runner Name : $RUNNER_NAME"
@@ -20,35 +19,29 @@ jobs:
           echo "======================================"
 
       - name: Check Java
-        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        shell: bash
         run: |
-          echo "Java Version:"
           java -version
 
       - name: Check Git
-        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        shell: bash
         run: |
-          echo "Git Version:"
           git --version
 
       - name: Check Liquibase
-        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        shell: bash
         run: |
-          echo "Liquibase Version:"
           liquibase --version
 
       - name: Check Snowflake JDBC Driver
-        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        shell: bash
         run: |
           JAR="/c/Users/AKSHATA RANI/liquibase_libs/snowflake-jdbc-4.3.2.jar"
-
-          echo "Checking Snowflake JDBC driver..."
 
           if [ -f "$JAR" ]; then
             echo "Snowflake JDBC driver found:"
             echo "$JAR"
           else
-            echo "ERROR: Snowflake JDBC driver NOT found:"
-            echo "$JAR"
+            echo "ERROR: Snowflake JDBC driver NOT found"
             exit 1
           fi
