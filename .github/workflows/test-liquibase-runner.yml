@@ -7,7 +7,11 @@ jobs:
   test:
     runs-on: self-hosted
 
+    env:
+      LIQUIBASE_CLASSPATH: 'C:\Users\AKSHATA RANI\actions-runner\liquibase_libs\snowflake-jdbc-4.3.2.jar'
+
     steps:
+
       - name: Runner identity
         shell: cmd
         run: |
@@ -37,11 +41,24 @@ jobs:
           echo ===== SNOWFLAKE JDBC =====
           dir "C:\Users\AKSHATA RANI\actions-runner\liquibase_libs"
 
-      - name: Test Snowflake JDBC Classpath
+      - name: Verify Liquibase Snowflake Classpath
         shell: cmd
         run: |
-          echo ===== EXPLICIT SNOWFLAKE JDBC CLASSPATH =====
-          liquibase --classpath="C:\Users\AKSHATA RANI\actions-runner\liquibase_libs\snowflake-jdbc-4.3.2.jar" --version
+          echo ===== LIQUIBASE CLASSPATH =====
+          echo %LIQUIBASE_CLASSPATH%
+
+          echo.
+          echo ===== VERIFY JDBC JAR =====
+          if exist "%LIQUIBASE_CLASSPATH%" (
+            echo Snowflake JDBC JAR FOUND
+          ) else (
+            echo ERROR: Snowflake JDBC JAR NOT FOUND
+            exit /b 1
+          )
+
+          echo.
+          echo ===== LIQUIBASE VERSION =====
+          liquibase --version
 
       - name: LPM Check
         shell: cmd
@@ -55,4 +72,5 @@ jobs:
           echo ===== ENVIRONMENT =====
           echo JAVA_HOME=%JAVA_HOME%
           echo LIQUIBASE_HOME=%LIQUIBASE_HOME%
+          echo LIQUIBASE_CLASSPATH=%LIQUIBASE_CLASSPATH%
           echo PATH=%PATH%
