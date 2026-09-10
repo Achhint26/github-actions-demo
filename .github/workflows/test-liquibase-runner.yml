@@ -37,6 +37,18 @@ jobs:
           echo ===== SNOWFLAKE JDBC =====
           dir "C:\Users\AKSHATA RANI\actions-runner\liquibase_libs"
 
+      - name: Test Snowflake JDBC Classpath
+        shell: cmd
+        run: |
+          echo ===== EXPLICIT SNOWFLAKE JDBC CLASSPATH =====
+          liquibase --classpath="C:\Users\AKSHATA RANI\actions-runner\liquibase_libs\snowflake-jdbc-4.3.2.jar" --version
+
+      - name: LPM Check
+        shell: cmd
+        run: |
+          echo ===== LIQUIBASE LPM =====
+          liquibase lpm list
+
       - name: Runner environment
         shell: cmd
         run: |
