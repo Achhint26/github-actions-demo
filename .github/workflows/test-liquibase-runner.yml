@@ -5,43 +5,43 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: self-hosted
 
     steps:
-      - name: Check Runner
-        shell: 'C:\Program Files\Git\bin\bash.exe'
+      - name: Check runner identity
+        shell: powershell
         run: |
-          echo "======================================"
-          echo "Runner Name : $RUNNER_NAME"
-          echo "Runner OS   : $RUNNER_OS"
-          echo "Runner Arch : $RUNNER_ARCH"
-          echo "Workspace   : $GITHUB_WORKSPACE"
-          echo "======================================"
+          Write-Host "===== RUNNER IDENTITY ====="
+          whoami
+          $env:USERNAME
+          $env:USERDOMAIN
+
+      - name: Check runner environment
+        shell: powershell
+        run: |
+          Write-Host "===== ENVIRONMENT ====="
+          Write-Host "USERPROFILE = $env:USERPROFILE"
+          Write-Host "JAVA_HOME = $env:JAVA_HOME"
+          Write-Host "LIQUIBASE_HOME = $env:LIQUIBASE_HOME"
+          Write-Host "PATH = $env:PATH"
 
       - name: Check Java
-        shell: bash
+        shell: powershell
         run: |
+          Write-Host "===== JAVA ====="
           java -version
-
-      - name: Check Git
-        shell: bash
-        run: |
-          git --version
+          where.exe java
 
       - name: Check Liquibase
-        shell: bash
+        shell: powershell
         run: |
+          Write-Host "===== LIQUIBASE ====="
+          where.exe liquibase
           liquibase --version
 
-      - name: Check Snowflake JDBC Driver
-        shell: bash
+      - name: Check Snowflake JDBC
+        shell: powershell
         run: |
-          JAR="/c/Users/AKSHATA RANI/liquibase_libs/snowflake-jdbc-4.3.2.jar"
-
-          if [ -f "$JAR" ]; then
-            echo "Snowflake JDBC driver found:"
-            echo "$JAR"
-          else
-            echo "ERROR: Snowflake JDBC driver NOT found"
-            exit 1
-          fi
+          Write-Host "===== SNOWFLAKE JDBC ====="
+          Get-ChildItem "C:\Users\AKSHATA RANI\actions-runner\liquibase_libs" |
+          Where-Object { $_.Name -match "snowflake" }
