@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Check Runner
-        shell: bash
+        shell: 'C:\Program Files\Git\bin\bash.exe'
         run: |
           echo "======================================"
           echo "Runner Name : $RUNNER_NAME"
