@@ -1,0 +1,54 @@
+name: Test Liquibase Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+
+      - name: Check Runner
+        shell: powershell
+        run: |
+          Write-Host "======================================"
+          Write-Host "Runner Name : $env:RUNNER_NAME"
+          Write-Host "Runner OS   : $env:RUNNER_OS"
+          Write-Host "Runner Arch : $env:RUNNER_ARCH"
+          Write-Host "Workspace   : $env:GITHUB_WORKSPACE"
+          Write-Host "======================================"
+
+      - name: Check Java
+        shell: powershell
+        run: |
+          Write-Host "Java Version:"
+          java -version
+
+      - name: Check Git
+        shell: powershell
+        run: |
+          Write-Host "Git Version:"
+          git --version
+
+      - name: Check Liquibase
+        shell: powershell
+        run: |
+          Write-Host "Liquibase Version:"
+          liquibase --version
+
+      - name: Check Snowflake JDBC Driver
+        shell: powershell
+        run: |
+          Write-Host "Checking Snowflake JDBC driver..."
+
+          $jar = "C:\Users\AKSHATA RANI\liquibase_libs\snowflake-jdbc-4.3.2.jar"
+
+          if (Test-Path $jar) {
+              Write-Host "Snowflake JDBC driver found:"
+              Write-Host $jar
+          }
+          else {
+              Write-Error "Snowflake JDBC driver NOT found: $jar"
+              exit 1
+          }
