@@ -9,36 +9,36 @@ jobs:
 
     steps:
 
-      - - name: Check Runner
-          shell: 'C:\Program Files\Git\bin\bash.exe'
-          run: |
-            echo "======================================"
-            echo "Runner Name : $RUNNER_NAME"
-            echo "Runner OS   : $RUNNER_OS"
-            echo "Runner Arch : $RUNNER_ARCH"
-            echo "Workspace   : $GITHUB_WORKSPACE"
-    echo "======================================"
+      - name: Check Runner
+        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        run: |
+          echo "======================================"
+          echo "Runner Name : $RUNNER_NAME"
+          echo "Runner OS   : $RUNNER_OS"
+          echo "Runner Arch : $RUNNER_ARCH"
+          echo "Workspace   : $GITHUB_WORKSPACE"
+          echo "======================================"
 
       - name: Check Java
-        shell: bash
+        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
         run: |
           echo "Java Version:"
           java -version
 
       - name: Check Git
-        shell: bash
+        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
         run: |
           echo "Git Version:"
           git --version
 
       - name: Check Liquibase
-        shell: bash
+        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
         run: |
           echo "Liquibase Version:"
           liquibase --version
 
       - name: Check Snowflake JDBC Driver
-        shell: bash
+        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
         run: |
           JAR="/c/Users/AKSHATA RANI/liquibase_libs/snowflake-jdbc-4.3.2.jar"
 
