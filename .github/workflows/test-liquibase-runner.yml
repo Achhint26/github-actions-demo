@@ -10,45 +10,45 @@ jobs:
     steps:
 
       - name: Check Runner
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "======================================"
-          Write-Host "Runner Name : $env:RUNNER_NAME"
-          Write-Host "Runner OS   : $env:RUNNER_OS"
-          Write-Host "Runner Arch : $env:RUNNER_ARCH"
-          Write-Host "Workspace   : $env:GITHUB_WORKSPACE"
-          Write-Host "======================================"
+          echo "======================================"
+          echo "Runner Name : $RUNNER_NAME"
+          echo "Runner OS   : $RUNNER_OS"
+          echo "Runner Arch : $RUNNER_ARCH"
+          echo "Workspace   : $GITHUB_WORKSPACE"
+          echo "======================================"
 
       - name: Check Java
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "Java Version:"
+          echo "Java Version:"
           java -version
 
       - name: Check Git
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "Git Version:"
+          echo "Git Version:"
           git --version
 
       - name: Check Liquibase
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "Liquibase Version:"
+          echo "Liquibase Version:"
           liquibase --version
 
       - name: Check Snowflake JDBC Driver
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "Checking Snowflake JDBC driver..."
+          JAR="/c/Users/AKSHATA RANI/liquibase_libs/snowflake-jdbc-4.3.2.jar"
 
-          $jar = "C:\Users\AKSHATA RANI\liquibase_libs\snowflake-jdbc-4.3.2.jar"
+          echo "Checking Snowflake JDBC driver..."
 
-          if (Test-Path $jar) {
-              Write-Host "Snowflake JDBC driver found:"
-              Write-Host $jar
-          }
-          else {
-              Write-Error "Snowflake JDBC driver NOT found: $jar"
-              exit 1
-          }
+          if [ -f "$JAR" ]; then
+            echo "Snowflake JDBC driver found:"
+            echo "$JAR"
+          else
+            echo "ERROR: Snowflake JDBC driver NOT found:"
+            echo "$JAR"
+            exit 1
+          fi
