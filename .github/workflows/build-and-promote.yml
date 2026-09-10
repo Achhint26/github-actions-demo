@@ -1,12 +1,21 @@
 name: Build and Promote Integration to main
 
 on:
-  # Automatically run whenever code is pushed/merged to integration
-  push:
+
+  # ============================================================
+  # Automatically trigger when a PR is MERGED into integration
+  # ============================================================
+
+  pull_request:
+    types:
+      - closed
     branches:
       - integration
 
+  # ============================================================
   # Allow manual execution
+  # ============================================================
+
   workflow_dispatch:
     inputs:
       merge_to_main:
@@ -15,8 +24,14 @@ on:
         default: true
         type: boolean
 
+
+# ==============================================================
+# Permissions
+# ==============================================================
+
 permissions:
   contents: write
+
 
 jobs:
 
@@ -26,6 +41,26 @@ jobs:
 
   build:
     name: Build and Validate
+
+    # ------------------------------------------------------------
+    # Run only when:
+    #
+    # 1. A PR was actually merged
+    # 2. The PR target branch was integration
+    #
+    # OR
+    #
+    # 3. Workflow was manually triggered
+    # ------------------------------------------------------------
+
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == 'integration'
+      )
+
     runs-on: ubuntu-latest
 
     steps:
@@ -40,18 +75,48 @@ jobs:
           ref: integration
           fetch-depth: 0
 
+
       # --------------------------------------------------------
-      # Display commit information
+      # Display build information
       # --------------------------------------------------------
 
       - name: Display build information
         run: |
+
           echo "======================================"
+          echo "BUILD INFORMATION"
+          echo "======================================"
+
           echo "Branch        : integration"
           echo "Commit        : $(git rev-parse HEAD)"
+
           echo "Commit Message:"
           git log -1 --pretty=%B
+
           echo "======================================"
+
+
+      # --------------------------------------------------------
+      # Display PR information
+      # --------------------------------------------------------
+
+      - name: Display PR information
+        if: github.event_name == 'pull_request'
+        run: |
+
+          echo "======================================"
+          echo "PULL REQUEST INFORMATION"
+          echo "======================================"
+
+          echo "PR Number     : #${{ github.event.pull_request.number }}"
+          echo "PR Title      : ${{ github.event.pull_request.title }}"
+          echo "Source Branch : ${{ github.event.pull_request.head.ref }}"
+          echo "Target Branch : ${{ github.event.pull_request.base.ref }}"
+          echo "Merged        : ${{ github.event.pull_request.merged }}"
+          echo "Merged By     : ${{ github.event.pull_request.merged_by.login }}"
+
+          echo "======================================"
+
 
       # --------------------------------------------------------
       # Setup Java
@@ -63,16 +128,24 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+
       # --------------------------------------------------------
       # Build
       # --------------------------------------------------------
 
       - name: Build
         run: |
+
+          echo "======================================"
           echo "Starting build..."
+          echo "======================================"
 
           # Replace with your actual build command
+          #
           # ./build.sh
+
+          echo "Build completed."
+
 
       # --------------------------------------------------------
       # Unit Tests
@@ -80,10 +153,17 @@ jobs:
 
       - name: Run tests
         run: |
+
+          echo "======================================"
           echo "Running tests..."
+          echo "======================================"
 
           # Replace with your actual test command
+          #
           # ./test.sh
+
+          echo "Tests completed."
+
 
       # --------------------------------------------------------
       # SonarQube
@@ -94,6 +174,7 @@ jobs:
       # - name: SonarQube Scan
       #   ...
 
+
       # --------------------------------------------------------
       # Veracode
       # --------------------------------------------------------
@@ -102,6 +183,7 @@ jobs:
       #
       # - name: Veracode Scan
       #   ...
+
 
       # --------------------------------------------------------
       # Liquibase validation
@@ -112,37 +194,53 @@ jobs:
       # - name: Liquibase Validate
       #   ...
 
+
       # --------------------------------------------------------
       # Build completed
       # --------------------------------------------------------
 
       - name: Build successful
         run: |
+
           echo "======================================"
           echo "BUILD AND VALIDATION SUCCESSFUL"
           echo "======================================"
 
 
+
   # ============================================================
-  # MERGE integration → main
+  # PROMOTE integration → main
   # ============================================================
 
   promote:
     name: Promote Integration to main
+
     needs: build
 
-    # For push events automatically merge.
-    # For manual runs merge only when user selects true.
+    # ------------------------------------------------------------
+    # For PR merge:
+    #   Build succeeds → promote
+    #
+    # For manual execution:
+    #   Promote only when merge_to_main = true
+    # ------------------------------------------------------------
+
     if: >
-      github.event_name == 'push' ||
-      inputs.merge_to_main == true
+      needs.build.result == 'success' &&
+      (
+        github.event_name == 'pull_request' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          inputs.merge_to_main == true
+        )
+      )
 
     runs-on: ubuntu-latest
 
     steps:
 
       # --------------------------------------------------------
-      # Checkout repository
+      # Checkout integration
       # --------------------------------------------------------
 
       - name: Checkout integration
@@ -151,14 +249,16 @@ jobs:
           ref: integration
           fetch-depth: 0
 
+
       # --------------------------------------------------------
       # Verify branches
       # --------------------------------------------------------
 
       - name: Verify branches
         run: |
+
           echo "======================================"
-          echo "Verifying branches"
+          echo "VERIFYING BRANCHES"
           echo "======================================"
 
           git fetch origin main integration
@@ -169,6 +269,9 @@ jobs:
           echo "Main commit:"
           git rev-parse origin/main
 
+          echo "======================================"
+
+
       # --------------------------------------------------------
       # Check whether integration is ahead of main
       # --------------------------------------------------------
@@ -178,7 +281,7 @@ jobs:
         run: |
 
           echo "======================================"
-          echo "Checking integration vs main"
+          echo "CHECKING integration → main"
           echo "======================================"
 
           git fetch origin main integration
@@ -191,19 +294,25 @@ jobs:
           BEHIND=$(echo "$BEHIND_AHEAD" | awk '{print $1}')
           AHEAD=$(echo "$BEHIND_AHEAD" | awk '{print $2}')
 
-          echo "Main behind integration : $AHEAD commit(s)"
-          echo "Integration behind main : $BEHIND commit(s)"
+          echo "Main behind integration      : $AHEAD commit(s)"
+          echo "Integration behind main      : $BEHIND commit(s)"
 
           echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
           echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
 
           if [ "$AHEAD" -eq 0 ]; then
+
             echo "No new commits to promote."
+
             exit 0
+
           fi
 
           echo "Integration contains $AHEAD new commit(s)."
           echo "Changes are available for promotion."
+
+          echo "======================================"
+
 
       # --------------------------------------------------------
       # Direct merge integration → main
@@ -213,10 +322,11 @@ jobs:
         if: steps.changes.outputs.ahead != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         run: |
 
           echo "======================================"
-          echo "Promoting integration → main"
+          echo "PROMOTING integration → main"
           echo "======================================"
 
           echo "Source branch : integration"
@@ -235,17 +345,23 @@ jobs:
           echo "$RESPONSE"
 
           # ----------------------------------------------------
-          # Check whether GitHub actually created a merge commit
+          # Verify merge response
           # ----------------------------------------------------
 
           if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
+
             echo "ERROR: GitHub did not create a merge."
+
             exit 1
+
           fi
 
           echo "======================================"
-          echo "Integration successfully promoted to main"
+          echo "INTEGRATION SUCCESSFULLY PROMOTED"
           echo "======================================"
+
+          echo "integration → main completed successfully."
+
 
       # --------------------------------------------------------
       # Nothing to promote
@@ -254,7 +370,9 @@ jobs:
       - name: No changes to promote
         if: steps.changes.outputs.ahead == '0'
         run: |
+
           echo "======================================"
-          echo "No changes to promote"
+          echo "NO CHANGES TO PROMOTE"
           echo "======================================"
+
           echo "integration and main are already aligned."
