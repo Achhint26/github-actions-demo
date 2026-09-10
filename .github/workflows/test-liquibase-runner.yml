@@ -9,15 +9,15 @@ jobs:
 
     steps:
 
-      - name: Check Runner
-        shell: bash
-        run: |
-          echo "======================================"
-          echo "Runner Name : $RUNNER_NAME"
-          echo "Runner OS   : $RUNNER_OS"
-          echo "Runner Arch : $RUNNER_ARCH"
-          echo "Workspace   : $GITHUB_WORKSPACE"
-          echo "======================================"
+      - - name: Check Runner
+          shell: 'C:\Program Files\Git\bin\bash.exe'
+          run: |
+            echo "======================================"
+            echo "Runner Name : $RUNNER_NAME"
+            echo "Runner OS   : $RUNNER_OS"
+            echo "Runner Arch : $RUNNER_ARCH"
+            echo "Workspace   : $GITHUB_WORKSPACE"
+    echo "======================================"
 
       - name: Check Java
         shell: bash
